@@ -33,4 +33,4 @@ jobs:
         AZURE_FILE_NAME: ${{ secrets.AZURE_FILE_NAME }}
         START_DATE: ${{ secrets.START_DATE }}
 
-      run: python etl_pipeline.py
+      run: python data_pipeline.py
