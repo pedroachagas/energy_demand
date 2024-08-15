@@ -1,15 +1,16 @@
+import os
+import pendulum
+import pandas as pd
+import duckdb
+from adlfs import AzureBlobFileSystem
+import pyarrow.dataset as ds
+from load_dotenv import load_dotenv
+import loguru as logging
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-import pendulum
-import pandas as pd
-from azure.storage.blob import BlobServiceClient
-import loguru as logging
-import os
-import io
-import pyarrow as pa
-import pyarrow.parquet as pq
-from load_dotenv import load_dotenv
+import json
+import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -22,8 +23,13 @@ ACC_KEY = os.environ["ACC_KEY"]
 CONTAINER_NAME = os.environ["CONTEINER"]
 FOLDER = os.environ["FOLDER"]
 ACC_NAME = os.environ["ACC_NAME"]
-AZURE_CONNECTION_STRING = f"DefaultEndpointsProtocol=https;AccountName={ACC_NAME};AccountKey={ACC_KEY};EndpointSuffix=core.windows.net"
 
+# Initialize Azure Blob FileSystem
+abfs = AzureBlobFileSystem(
+    account_name=ACC_NAME,
+    account_key=ACC_KEY,
+    container_name=CONTAINER_NAME
+)
 
 def fetch_data(start_date, end_date, area_code):
     logger.info("Starting data fetch")
@@ -59,46 +65,123 @@ def fetch_data(start_date, end_date, area_code):
     logger.info("Data fetch completed")
     return all_data
 
+def save_to_bronze(data, date):
+    logger.info("Saving data to Bronze layer")
+    bronze_path = f"abfs://{CONTAINER_NAME}/{FOLDER}/bronze/raw_data_{date}.json"
 
-def transform_data(data):
-    logger.info("Starting data transformation")
-    df = pd.DataFrame(data)[['din_referenciautc', 'val_cargaglobal']]
-    df = df.rename(columns={'val_cargaglobal': 'carga_mw'})
-    df = df[df['din_referenciautc'] < pendulum.now().to_date_string()]
-    df['din_referenciautc'] = pd.to_datetime(df['din_referenciautc'])
-    df.set_index('din_referenciautc', inplace=True)
-    daily_data = df.resample('D').sum()
-    logger.info("Data transformation completed")
-    return daily_data
+    # Convert data to JSON string
+    json_data = json.dumps(data)
 
+    # Save JSON string to file
+    with abfs.open(bronze_path, 'w') as f:
+        f.write(json_data)
 
-def load_data_to_azure_blob(dataframe, container_name, file_name):
-    logger.info("Starting data loading to Azure Blob Storage")
-
-    # Convert DataFrame to Parquet format in-memory
-    table = pa.Table.from_pandas(dataframe)
-    buffer = io.BytesIO()
-    pq.write_table(table, buffer)
-    buffer.seek(0)
-
-    # Initialize Azure Blob Service client
-    blob_service_client = BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
-    blob_client = blob_service_client.get_blob_client(container=container_name, blob=file_name)
-
-    # Upload the parquet file to Azure Blob Storage
-    blob_client.upload_blob(buffer, overwrite=True)
-    logger.info(f"Data successfully loaded to {container_name}/{file_name}")
+    logger.info(f"Data saved to Bronze layer: {bronze_path}")
 
 
-def get_blob_data(file_name):
-    # Initialize Azure Blob Service client
-    blob_service_client = BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
-    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=os.path.join(FOLDER, file_name))
+def process_to_silver(date):
+    logger.info("Processing data to Silver layer")
+    bronze_path = f"abfs://{CONTAINER_NAME}/{FOLDER}/bronze/raw_data_{date}.json"
+    silver_blob_path = f"{CONTAINER_NAME}/{FOLDER}/silver/cleaned_data_{date}.parquet"
 
-    # Download the parquet file from Azure Blob Storage
-    download_stream = blob_client.download_blob()
-    parquet_bytes = download_stream.readall()
+    # Read JSON data from Bronze layer
+    with abfs.open(bronze_path, 'r') as f:
+        json_data = json.load(f)
 
-    # Read the parquet file into a pandas DataFrame
-    dataframe = pq.read_table(io.BytesIO(parquet_bytes)).to_pandas()
-    return dataframe
+    # Create a DuckDB connection
+    conn = duckdb.connect(":memory:")
+
+    # Convert JSON data to a pandas DataFrame
+    df = pd.DataFrame(json_data)
+
+    # Register the DataFrame as a table in DuckDB
+    conn.register("bronze_data", df)
+
+    # Process data (select required columns and enforce schema)
+    conn.execute(f"""
+    CREATE TABLE silver_data AS
+    SELECT
+        CAST(din_referenciautc AS TIMESTAMP) AS data,
+        CAST(val_cargaglobal AS DOUBLE) AS carga_mw
+    FROM bronze_data
+    WHERE din_referenciautc < '{pendulum.now().to_date_string()}'
+    """)
+
+    # Save processed data to local temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
+        local_silver_path = tmp_file.name
+        conn.execute(f"""
+        COPY (SELECT * FROM silver_data)
+        TO '{local_silver_path}'
+        (FORMAT PARQUET)
+        """)
+
+    # Upload the local file to Azure Blob Storage
+    abfs.put(local_silver_path, silver_blob_path)
+
+    logger.info(f"Data processed and saved to Silver layer: abfs://{silver_blob_path}")
+
+def transform_to_gold(date):
+    logger.info("Transforming data to Gold layer")
+    silver_blob_path = f"{CONTAINER_NAME}/{FOLDER}/silver/cleaned_data_{date}.parquet"
+    gold_blob_path = f"{CONTAINER_NAME}/{FOLDER}/gold/aggregated_data_{date}.parquet"
+
+    # Download the Silver parquet file locally
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
+        local_silver_path = tmp_file.name
+        with abfs.open(silver_blob_path, 'rb') as data:
+            with open(local_silver_path, 'wb') as out_file:
+                out_file.write(data.read())
+
+    # Create a DuckDB connection
+    conn = duckdb.connect(":memory:")
+
+    # Read data from the local Silver file
+    conn.execute(f"CREATE TABLE silver_data AS SELECT * FROM parquet_scan('{local_silver_path}')")
+
+    # Transform data (resample to daily sum)
+    conn.execute(f"""
+    CREATE TABLE gold_data AS
+    SELECT
+        DATE_TRUNC('day', data) AS date,
+        SUM(carga_mw) AS daily_carga_mw
+    FROM silver_data
+    GROUP BY DATE_TRUNC('day', data)
+    ORDER BY date
+    """)
+
+    # Save transformed data to local temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
+        local_gold_path = tmp_file.name
+        conn.execute(f"""
+        COPY (SELECT * FROM gold_data)
+        TO '{local_gold_path}'
+        (FORMAT PARQUET)
+        """)
+
+    # Upload the local file to Azure Blob Storage
+    abfs.put(local_gold_path, gold_blob_path)
+
+    logger.info(f"Data transformed and saved to Gold layer: abfs://{gold_blob_path}")
+
+
+def get_gold_data(date):
+    logger.info(f"Fetching data from Gold layer for date: {date}")
+    gold_blob_path = f"{CONTAINER_NAME}/{FOLDER}/gold/aggregated_data_{date}.parquet"
+
+    # Download the Gold parquet file locally
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
+        local_gold_path = tmp_file.name
+        with abfs.open(gold_blob_path, 'rb') as data:
+            with open(local_gold_path, 'wb') as out_file:
+                out_file.write(data.read())
+
+    # Create a DuckDB connection
+    conn = duckdb.connect(":memory:")
+
+    # Read the Parquet file from the local path
+    query = f"SELECT * FROM parquet_scan('{local_gold_path}')"
+    result = conn.execute(query).fetchdf()
+
+    logger.info("Data successfully fetched from Gold layer")
+    return result

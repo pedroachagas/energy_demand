@@ -1,8 +1,7 @@
 import os
 import pendulum
 from load_dotenv import load_dotenv
-from dashboard import FILE_NAME
-from utils import fetch_data, transform_data, load_data_to_azure_blob
+from utils import fetch_data, save_to_bronze, process_to_silver, transform_to_gold, get_gold_data
 import loguru as logging
 
 # Initialize logger
@@ -12,24 +11,32 @@ logger = logging.logger
 load_dotenv()
 
 # Load environment variables
-ACC_KEY = os.environ["ACC_KEY"]
-CONTAINER_NAME = os.environ["CONTEINER"]
-FOLDER = os.environ["FOLDER"]
 START_DATE = os.environ["START_DATE"]
-FILE_NAME = os.environ["AZURE_FILE_NAME"]
 
 def run_pipeline():
     END_DATE = os.getenv('END_DATE', pendulum.now().subtract(days=1).to_date_string())
     AREA_CODE = os.getenv('AREA_CODE', 'SP')
 
     try:
+        # Fetch data
         data = fetch_data(START_DATE, END_DATE, AREA_CODE)
-        transformed_data = transform_data(data)
-        load_data_to_azure_blob(
-            dataframe=transformed_data,
-            container_name=CONTAINER_NAME,
-            file_name=os.path.join(FOLDER, FILE_NAME)
-            )
+
+        # Process date
+        process_date = pendulum.now().to_date_string().replace("-", "")
+
+        # Save to Bronze layer
+        save_to_bronze(data, process_date)
+
+        # Process to Silver layer
+        process_to_silver(process_date)
+
+        # Transform to Gold layer
+        transform_to_gold(process_date)
+
+        # Optionally, retrieve and use the Gold layer data
+        gold_data = get_gold_data(process_date)
+        logger.info(f"Gold layer data shape: {gold_data.shape}")
+
     except Exception as e:
         logger.error(f"Pipeline failed: {str(e)}")
         raise
