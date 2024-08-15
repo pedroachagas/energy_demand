@@ -3,3 +3,4 @@
 /.venv
 /__pycache__
 /ds_levels
+.streamlit/secrets.toml
