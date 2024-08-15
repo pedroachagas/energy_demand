@@ -19,7 +19,7 @@ START_DATE = os.environ["START_DATE"]
 FILE_NAME = os.environ["AZURE_FILE_NAME"]
 
 def run_pipeline():
-    END_DATE = os.getenv('END_DATE', pendulum.now().to_date_string())
+    END_DATE = os.getenv('END_DATE', pendulum.now().subtract(days=1).to_date_string())
     AREA_CODE = os.getenv('AREA_CODE', 'SP')
 
     try:
