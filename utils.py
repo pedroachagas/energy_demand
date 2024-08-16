@@ -251,7 +251,7 @@ def train_model(df_train, models):
     return MLForecast(
         models=models,
         freq='D',
-        lags=[1, 7, 14, 28, 30, HORIZON, 90],
+        lags=[1, 7, 14, 28, 30, 60, 90],
         lag_transforms={
             1: [
                 (rolling_mean, 3),
@@ -281,7 +281,8 @@ def train_model(df_train, models):
             id_col='unique_id',
             time_col='ds',
             target_col='y',
-            max_horizon=60,
+            max_horizon=HORIZON,
+            static_features=[],
             prediction_intervals=PredictionIntervals(n_windows=5, h=HORIZON, method="conformal_distribution"),
             fitted=True
         )
