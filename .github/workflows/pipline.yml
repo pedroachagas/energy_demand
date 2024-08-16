@@ -56,6 +56,10 @@ jobs:
     - name: Run ETL pipeline
       env:
 
+        ACC_NAME: ${{ secrets.ACC_NAME }}
+        ACC_KEY: ${{ secrets.ACC_KEY }}
+        CONTEINER: ${{ secrets.CONTEINER }}
+        FOLDER: ${{ secrets.FOLDER }}
         MODEL_START_DATE: ${{ secrets.MODEL_START_DATE }}
         MODEL_SPLIT_DATE: ${{ secrets.MODEL_START_DATE }}
         LEVELS: ${{ secrets.MODEL_START_DATE }}
