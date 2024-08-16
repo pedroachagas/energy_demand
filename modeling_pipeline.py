@@ -19,7 +19,7 @@ load_dotenv()
 # Load environment variables
 MODEL_START_DATE = os.environ["MODEL_START_DATE"]
 MODEL_SPLIT_DATE = os.environ["MODEL_SPLIT_DATE"]
-LEVELS = [int(p) for p in os.environ['LEVELS'].split(', ')]
+LEVELS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99]
 RANDOM_STATE = 0
 N_ESTIMATORS = 100
 
