@@ -41,7 +41,7 @@ ACC_KEY = os.environ["ACC_KEY"]
 CONTAINER_NAME = os.environ["CONTEINER"]
 FOLDER = os.environ["FOLDER"]
 ACC_NAME = os.environ["ACC_NAME"]
-HORIZON = 60
+HORIZON = 30
 
 # Initialize Azure Blob FileSystem
 abfs = AzureBlobFileSystem(
@@ -283,7 +283,7 @@ def train_model(df_train, models):
             target_col='y',
             max_horizon=HORIZON,
             static_features=[],
-            prediction_intervals=PredictionIntervals(n_windows=5, h=HORIZON, method="conformal_distribution"),
+            prediction_intervals=PredictionIntervals(n_windows=3, h=HORIZON, method="conformal_distribution"),
             fitted=True
         )
 
