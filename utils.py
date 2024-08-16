@@ -41,6 +41,7 @@ ACC_KEY = os.environ["ACC_KEY"]
 CONTAINER_NAME = os.environ["CONTEINER"]
 FOLDER = os.environ["FOLDER"]
 ACC_NAME = os.environ["ACC_NAME"]
+HORIZON = 60
 
 # Initialize Azure Blob FileSystem
 abfs = AzureBlobFileSystem(
@@ -250,7 +251,7 @@ def train_model(df_train, models):
     return MLForecast(
         models=models,
         freq='D',
-        lags=[1, 7, 14, 28, 30, 60, 90],
+        lags=[1, 7, 14, 28, 30, HORIZON, 90],
         lag_transforms={
             1: [
                 (rolling_mean, 3),
@@ -281,13 +282,13 @@ def train_model(df_train, models):
             time_col='ds',
             target_col='y',
             max_horizon=60,
-            prediction_intervals=PredictionIntervals(n_windows=3, h=60, method="conformal_distribution"),
+            prediction_intervals=PredictionIntervals(n_windows=5, h=HORIZON, method="conformal_distribution"),
             fitted=True
         )
 
 def score_data(df, model, levels):
     logger.info("Scoring data")
-    forecast_df = model.predict(h=60, level=levels)
+    forecast_df = model.predict(h=HORIZON, level=levels)
     df = df.sort_values('ds')
     df = df.merge(forecast_df, on=['ds', 'unique_id'], how='left')
     return df
