@@ -19,7 +19,7 @@ load_dotenv()
 # Load environment variables
 MODEL_START_DATE = os.environ["MODEL_START_DATE"]
 MODEL_SPLIT_DATE = os.environ["MODEL_SPLIT_DATE"]
-LEVELS = json.loads(os.environ['LEVELS'])
+LEVELS = [int(p) for p in os.environ['LEVELS'].split(', ')]
 RANDOM_STATE = 0
 N_ESTIMATORS = 100
 
