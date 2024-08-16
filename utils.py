@@ -14,18 +14,11 @@ import tempfile
 
 import numpy as np
 from numba import njit
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from catboost import CatBoostRegressor
-from lightgbm import LGBMRegressor
-from xgboost import XGBRegressor
-from sklearn.ensemble import RandomForestRegressor
 from mlforecast import MLForecast
 from mlforecast.utils import PredictionIntervals
 from statsmodels.tsa.seasonal import seasonal_decompose
 from utilsforecast.plotting import plot_series
 
-from optuna import create_study
-from optuna.samplers import TPESampler
 
 import plotly.graph_objs as go
 
@@ -263,7 +256,7 @@ def train_model(df_train, models):
                 (rolling_std, 28),
                 (diff, 1),
                 (diff, 7),
-                (diff, 15)
+                (diff, 15),
                 (diff, 28)
             ],
         },
