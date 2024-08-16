@@ -12,6 +12,24 @@ from requests.packages.urllib3.util.retry import Retry
 import json
 import tempfile
 
+import numpy as np
+from numba import njit
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from catboost import CatBoostRegressor
+from lightgbm import LGBMRegressor
+from xgboost import XGBRegressor
+from sklearn.ensemble import RandomForestRegressor
+from mlforecast import MLForecast
+from mlforecast.utils import PredictionIntervals
+from statsmodels.tsa.seasonal import seasonal_decompose
+from utilsforecast.plotting import plot_series
+
+from optuna import create_study
+from optuna.samplers import TPESampler
+
+import plotly.graph_objs as go
+
+
 # Load environment variables
 load_dotenv()
 
@@ -165,23 +183,211 @@ def transform_to_gold(date):
     logger.info(f"Data transformed and saved to Gold layer: abfs://{gold_blob_path}")
 
 
-def get_gold_data(date):
-    logger.info(f"Fetching data from Gold layer for date: {date}")
-    gold_blob_path = f"{CONTAINER_NAME}/{FOLDER}/gold/aggregated_data_{date}.parquet"
+def get_gold_data():
+    logger.info(f"Fetching data from Gold layer for date")
+    gold_blob_path = f"{CONTAINER_NAME}/{FOLDER}/gold/"
+
+    # find the file latest file
+    files = abfs.ls(gold_blob_path)
+    latest_file = max(files, key=lambda x: x.split("/")[-1])
+    gold_blob_path = latest_file
 
     # Download the Gold parquet file locally
+    pqdata = ds.dataset(gold_blob_path, filesystem=abfs)
+
+    return (
+        pqdata
+        .to_table()
+        .to_pandas()
+        .reset_index(drop=True)
+        .assign(
+            date=lambda x: pd.to_datetime(x["date"]),
+            unique_id=0
+        )
+        .rename(columns={
+            "date": "ds",
+            "daily_carga_mw": "y",
+        })
+    )
+
+def split_data(data, start_date, split_date):
+    df_train = data[(data["ds"] >= start_date) & (data["ds"] < split_date)]
+    df_oot = data[data["ds"] >= split_date]
+
+    return df_train, df_oot
+
+@njit
+def diff(x, lag):
+    x2 = np.full_like(x, np.nan)
+    for i in range(lag, len(x)):
+        x2[i] = x[i] - x[i-lag]
+    return x2
+
+@njit
+def rolling_mean(x, window):
+    x2 = np.full_like(x, np.nan)
+    for i in range(window - 1, len(x)):
+        x2[i] = np.mean(x[i-window+1:i+1])
+    return x2
+
+@njit
+def rolling_std(x, window):
+    x2 = np.full_like(x, np.nan)
+    for i in range(window - 1, len(x)):
+        x2[i] = np.std(x[i-window+1:i+1])
+    return x2
+
+def seasonal_decomposition_features(df):
+    result = seasonal_decompose(df.set_index('ds')['y'], model='additive')
+    df['trend'] = result.trend
+    df['seasonality'] = result.seasonal
+    df['residual'] = result.resid
+    return df
+
+
+def train_model(df_train, models):
+    logger.info("Training model")
+    return MLForecast(
+        models=models,
+        freq='D',
+        lags=[1, 7, 14, 28, 30, 60, 90],
+        lag_transforms={
+            1: [
+                (rolling_mean, 3),
+                (rolling_mean, 7),
+                (rolling_mean, 15),
+                (rolling_mean, 28),
+                (rolling_mean, 60),
+                (rolling_mean, 90),
+                (rolling_std, 7),
+                (rolling_std, 28),
+                (diff, 1),
+                (diff, 7),
+                (diff, 28)
+            ],
+        },
+        date_features=[
+            'month',
+            'day',
+            'week',
+            'dayofyear',
+            'quarter',
+            'dayofweek',
+        ],
+        num_threads=12
+        ).fit(
+            df_train,
+            id_col='unique_id',
+            time_col='ds',
+            target_col='y',
+            max_horizon=60,
+            prediction_intervals=PredictionIntervals(n_windows=3, h=60, method="conformal_distribution"),
+            fitted=True
+        )
+
+def score_data(df, model, levels):
+    logger.info("Scoring data")
+    forecast_df = model.predict(h=60, level=levels)
+    df = df.sort_values('ds')
+    df = df.merge(forecast_df, on=['ds', 'unique_id'], how='left')
+    return df
+
+def save_predictions(df, date):
+
+    logger.info("Saving predictions to Gold layer")
+    predictions_blob_path = f"{CONTAINER_NAME}/{FOLDER}/predictions/predictions_{date}.parquet"
+
+    # Save predictions to local temporary file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
-        local_gold_path = tmp_file.name
-        with abfs.open(gold_blob_path, 'rb') as data:
-            with open(local_gold_path, 'wb') as out_file:
-                out_file.write(data.read())
+        local_predictions_path = tmp_file.name
+        df.to_parquet(local_predictions_path, index=False)
 
-    # Create a DuckDB connection
-    conn = duckdb.connect(":memory:")
+    # Upload the local file to Azure Blob Storage
+    abfs.put(local_predictions_path, predictions_blob_path)
 
-    # Read the Parquet file from the local path
-    query = f"SELECT * FROM parquet_scan('{local_gold_path}')"
-    result = conn.execute(query).fetchdf()
+    logger.info(f"Predictions saved to Gold layer: abfs://{predictions_blob_path}")
 
-    logger.info("Data successfully fetched from Gold layer")
-    return result
+def load_predictions():
+    logger.info("Loading predictions")
+    predictions_blob_path = f"{CONTAINER_NAME}/{FOLDER}/predictions/"
+
+    # find the file latest file
+    files = abfs.ls(predictions_blob_path)
+    latest_file = max(files, key=lambda x: x.split("/")[-1])
+    predictions_blob_path = latest_file
+
+    # Download the Gold parquet file locally
+    path = f"{CONTAINER_NAME}/{FOLDER}/predictions/predictions_20240815.parquet"
+
+    pqdata = ds.dataset(path, filesystem=abfs)
+
+    return (
+        pqdata
+        .to_table()
+        .to_pandas()
+        .reset_index(drop=True)
+        .assign(
+            ds=lambda x: pd.to_datetime(x["ds"]),
+        )
+    )
+
+def generate_plot(data, preds, models=[], levels=[]):
+    logger.info("Generating plot")
+    return plot_series(data, preds, level=levels, models=models, engine='plotly', palette='tab10')
+
+def create_plotly_figure(df, models, confidence_levels):
+    fig = go.Figure()
+
+    # Adding the actual values
+    fig.add_trace(go.Scatter(
+        x=df['ds'],
+        y=df['y'],
+        mode='lines+markers',
+        name='Actual',
+        line=dict(color='black', width=2),
+        marker=dict(size=5)
+    ))
+
+    # Adding model predictions and confidence intervals
+    for model in models:
+        # Plotting the predicted values
+        fig.add_trace(go.Scatter(
+            x=df['ds'],
+            y=df[model],
+            mode='lines',
+            name=f'{model}',
+            line=dict(width=2)
+        ))
+
+        for conf in confidence_levels:
+            lo_col = f'{model}-lo-{conf}'
+            hi_col = f'{model}-hi-{conf}'
+
+            # Plotting the confidence intervals correctly
+            fig.add_trace(go.Scatter(
+                x=df['ds'],
+                y=df[hi_col],
+                mode='lines',
+                line=dict(width=0),
+                showlegend=False
+            ))
+            fig.add_trace(go.Scatter(
+                x=df['ds'],
+                y=df[lo_col],
+                mode='lines',
+                fill='tonexty',
+                fillcolor='rgba(0,100,80,0.2)',
+                line=dict(width=0),
+                showlegend=False
+            ))
+
+    # Updating layout
+    fig.update_layout(
+        title="Model Predictions with Confidence Intervals",
+        xaxis_title="Date",
+        yaxis_title="Value",
+        legend_title="Legend",
+        hovermode="x"
+    )
+
+    return fig

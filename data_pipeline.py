@@ -33,10 +33,6 @@ def run_pipeline():
         # Transform to Gold layer
         transform_to_gold(process_date)
 
-        # Optionally, retrieve and use the Gold layer data
-        gold_data = get_gold_data(process_date)
-        logger.info(f"Gold layer data shape: {gold_data.shape}")
-
     except Exception as e:
         logger.error(f"Pipeline failed: {str(e)}")
         raise
