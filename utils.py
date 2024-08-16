@@ -41,7 +41,7 @@ ACC_KEY = os.environ["ACC_KEY"]
 CONTAINER_NAME = os.environ["CONTEINER"]
 FOLDER = os.environ["FOLDER"]
 ACC_NAME = os.environ["ACC_NAME"]
-HORIZON = 30
+HORIZON = 60
 
 # Initialize Azure Blob FileSystem
 abfs = AzureBlobFileSystem(
@@ -251,19 +251,19 @@ def train_model(df_train, models):
     return MLForecast(
         models=models,
         freq='D',
-        lags=[1, 7, 14, 28, 30, 60, 90],
+        lags=[1, 7, 14, 28],
         lag_transforms={
             1: [
                 (rolling_mean, 3),
                 (rolling_mean, 7),
-                (rolling_mean, 15),
+                (rolling_mean, 14),
                 (rolling_mean, 28),
-                (rolling_mean, 60),
-                (rolling_mean, 90),
                 (rolling_std, 7),
+                (rolling_std, 14),
                 (rolling_std, 28),
                 (diff, 1),
                 (diff, 7),
+                (diff, 15)
                 (diff, 28)
             ],
         },
