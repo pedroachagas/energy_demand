@@ -1,4 +1,4 @@
-name: ETL Pipeline
+name: Data Pipeline
 
 on:
   schedule:
@@ -25,17 +25,15 @@ jobs:
 
     - name: Run ETL pipeline
       env:
-
         ACC_NAME: ${{ secrets.ACC_NAME }}
         ACC_KEY: ${{ secrets.ACC_KEY }}
         CONTEINER: ${{ secrets.CONTEINER }}
         FOLDER: ${{ secrets.FOLDER }}
         AZURE_FILE_NAME: ${{ secrets.AZURE_FILE_NAME }}
         START_DATE: ${{ secrets.START_DATE }}
-
       run: python data_pipeline.py
 
-  modeling_job:
+  scoring_job:
     needs: etl_job
     runs-on: ubuntu-latest
 
@@ -53,15 +51,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run ETL pipeline
+    - name: Run Scoring pipeline
       env:
-
         ACC_NAME: ${{ secrets.ACC_NAME }}
         ACC_KEY: ${{ secrets.ACC_KEY }}
         CONTEINER: ${{ secrets.CONTEINER }}
         FOLDER: ${{ secrets.FOLDER }}
-        MODEL_START_DATE: ${{ secrets.MODEL_START_DATE }}
-        MODEL_SPLIT_DATE: ${{ secrets.MODEL_START_DATE }}
-        LEVELS: ${{ secrets.MODEL_START_DATE }}
-
-      run: python modeling_pipeline.py
+      run: python scoring_pipeline.py
