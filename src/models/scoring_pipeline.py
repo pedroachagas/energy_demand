@@ -1,7 +1,7 @@
 import os
 import pendulum
 from load_dotenv import load_dotenv
-from utils import get_gold_data, score_data, save_predictions
+from ..utils import get_gold_data, score_data, save_predictions
 import loguru as logging
 import joblib
 import requests
@@ -18,20 +18,49 @@ HORIZON = 60
 
 def download_model():
     # Replace with your actual GitHub repository and artifact details
-    url = "https://api.github.com/repos/OWNER/REPO/actions/artifacts"
+    url = "https://api.github.com/repos/pedroachagas/energy_demand/actions/artifacts"
     headers = {"Authorization": f"token {os.environ['GITHUB_TOKEN']}"}
-    response = requests.get(url, headers=headers)
-    artifacts = response.json()["artifacts"]
 
-    # Find the latest trained model artifact
-    model_artifact = next(artifact for artifact in artifacts if artifact["name"] == "trained-model")
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        artifacts = response.json()["artifacts"]
 
-    # Download the artifact
-    download_url = model_artifact["archive_download_url"]
-    model_data = requests.get(download_url, headers=headers).content
+        logger.info(f"Found {len(artifacts)} artifacts")
 
-    with open("trained_model.joblib", "wb") as f:
-        f.write(model_data)
+        # List all artifact names
+        artifact_names = [artifact["name"] for artifact in artifacts]
+        logger.info(f"Available artifacts: {', '.join(artifact_names)}")
+
+        # Find the latest trained model artifact
+        model_artifacts = [artifact for artifact in artifacts if artifact["name"] == "trained-model"]
+
+        if not model_artifacts:
+            raise ValueError("No 'trained-model' artifact found")
+
+        model_artifact = model_artifacts[0]  # Get the latest one
+
+        # Download the artifact
+        download_url = model_artifact["archive_download_url"]
+        model_data = requests.get(download_url, headers=headers).content
+
+        with open("trained_model.joblib", "wb") as f:
+            f.write(model_data)
+
+        logger.info("Model downloaded successfully")
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error making request to GitHub API: {e}")
+        raise
+    except KeyError as e:
+        logger.error(f"Unexpected response format from GitHub API: {e}")
+        raise
+    except ValueError as e:
+        logger.error(str(e))
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise
 
 def run_pipeline():
     try:

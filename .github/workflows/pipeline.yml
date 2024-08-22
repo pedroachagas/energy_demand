@@ -31,7 +31,7 @@ jobs:
         FOLDER: ${{ secrets.FOLDER }}
         AZURE_FILE_NAME: ${{ secrets.AZURE_FILE_NAME }}
         START_DATE: ${{ secrets.START_DATE }}
-      run: python data_pipeline.py
+      run: python -m src.data.data_pipeline
 
   scoring_job:
     needs: etl_job
@@ -57,4 +57,4 @@ jobs:
         ACC_KEY: ${{ secrets.ACC_KEY }}
         CONTEINER: ${{ secrets.CONTEINER }}
         FOLDER: ${{ secrets.FOLDER }}
-      run: python scoring_pipeline.py
+      run: python -m src.models.scoring_pipeline

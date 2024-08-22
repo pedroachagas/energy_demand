@@ -1,7 +1,7 @@
 import os
 import pendulum
 from load_dotenv import load_dotenv
-from utils import fetch_data, save_to_bronze, process_to_silver, transform_to_gold, get_gold_data
+from ..utils import fetch_data, save_to_bronze, process_to_silver, transform_to_gold, get_gold_data
 import loguru as logging
 
 # Initialize logger

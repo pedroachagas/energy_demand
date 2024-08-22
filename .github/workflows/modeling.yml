@@ -42,7 +42,8 @@ jobs:
         docker run --rm \
           -e ACC_NAME -e ACC_KEY -e CONTEINER -e FOLDER \
           -e MODEL_START_DATE -e MODEL_SPLIT_DATE \
-          ghcr.io/${{ github.repository }}/modeling:latest
+          ghcr.io/${{ github.repository }}/modeling:latest \
+          python -m src.models.modeling_pipeline
 
     - name: Upload trained model
       uses: actions/upload-artifact@v2

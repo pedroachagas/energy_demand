@@ -1,14 +1,11 @@
 import os
-import numpy as np
-import json
 from catboost import CatBoostRegressor
 from lightgbm import LGBMRegressor
 from xgboost import XGBRegressor
 from sklearn.ensemble import RandomForestRegressor
 import loguru as logging
-import pendulum
 from load_dotenv import load_dotenv
-from utils import get_gold_data, split_data, train_model
+from ..utils import get_gold_data, train_model
 import joblib
 
 # Initialize logger

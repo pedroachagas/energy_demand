@@ -11,3 +11,4 @@ catboost_info/learn/events.out.tfevents
 config/.env
 config/streamlit_secrets.toml
 reorganize_repo.sh
+__pycache__

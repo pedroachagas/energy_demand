@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 import streamlit as st
 from dotenv import load_dotenv
 from utils import get_gold_data, load_predictions, create_plotly_figure
