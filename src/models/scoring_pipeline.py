@@ -5,6 +5,7 @@ from ..utils import get_gold_data, score_data, save_predictions
 import loguru as logging
 import joblib
 import requests
+import io
 
 # Initialize logger
 logger = logging.logger
@@ -46,9 +47,11 @@ def download_model():
         model_artifact = model_artifacts[0]  # Get the latest one
 
         # Download the artifact
+        logger.info(f"Downloading artifact: {model_artifact['name']}")
         download_url = model_artifact["archive_download_url"]
         model_data = requests.get(download_url, headers=headers).content
 
+        # Save the model directly without unpacking
         with open("trained_model.joblib", "wb") as f:
             f.write(model_data)
 
@@ -78,7 +81,13 @@ def run_pipeline():
             return
 
         # Load the trained model
-        model = joblib.load('trained_model.joblib')
+        try:
+            with open('trained_model.joblib', 'rb') as f:
+                model_data = f.read()
+            model = joblib.load(io.BytesIO(model_data))
+        except Exception as e:
+            logger.error(f"Error loading model: {str(e)}")
+            raise
 
         # Get the latest data
         gold_data = get_gold_data()
