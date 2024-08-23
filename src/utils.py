@@ -282,10 +282,29 @@ def train_model(df_train, models):
 
 def score_data(df, model, levels):
     logger.info("Scoring data")
-    forecast_df = model.predict(h=HORIZON, level=levels)
-    df = df.sort_values('ds')
-    df = df.merge(forecast_df, on=['ds', 'unique_id'], how='left')
-    return df
+
+    # Get the date 30 days ago
+    start_date = pendulum.now().subtract(days=30).start_of('day')
+
+    # Filter the dataframe to include data up to 30 days ago
+    df_history = df[df['ds'] < start_date]
+
+    # Create a date range for the next 60 days starting from 30 days ago
+    future_dates = pd.date_range(start=start_date, periods=60, freq='D')
+
+    # Create a dataframe for future predictions
+    df_future = pd.DataFrame({'ds': future_dates, 'unique_id': 0})
+
+    # Combine historical and future dataframes
+    df_to_predict = pd.concat([df_history, df_future]).sort_values('ds').reset_index(drop=True)
+
+    # Make predictions
+    forecast_df = model.predict(df=df_to_predict, level=levels)
+
+    # Merge predictions with original data
+    result_df = df.merge(forecast_df, on=['ds', 'unique_id'], how='left')
+
+    return result_df
 
 def save_predictions(df, date):
 
@@ -311,10 +330,7 @@ def load_predictions():
     latest_file = max(files, key=lambda x: x.split("/")[-1])
     predictions_blob_path = latest_file
 
-    # Download the Gold parquet file locally
-    path = f"{CONTAINER_NAME}/{FOLDER}/predictions/predictions_20240815.parquet"
-
-    pqdata = ds.dataset(path, filesystem=abfs)
+    pqdata = ds.dataset(predictions_blob_path, filesystem=abfs)
 
     return (
         pqdata
@@ -332,6 +348,9 @@ def generate_plot(data, preds, models=[], levels=[]):
 
 def create_plotly_figure(df, models, confidence_levels):
     fig = go.Figure()
+
+    # Get the date 30 days ago (start of forecast)
+    forecast_start = pendulum.now().subtract(days=30).start_of('day')
 
     # Adding the actual values
     fig.add_trace(go.Scatter(
@@ -375,6 +394,9 @@ def create_plotly_figure(df, models, confidence_levels):
                 line=dict(width=0),
                 showlegend=False
             ))
+
+    # Add a vertical line to indicate the start of the forecast
+    fig.add_vline(x=forecast_start, line_dash="dash", line_color="red", annotation_text="Forecast Start", annotation_position="top right")
 
     # Updating layout
     fig.update_layout(
