@@ -98,10 +98,11 @@ def run_pipeline():
         # Score data
         new_forecast = score_data(df_hist, model, levels=LEVELS)
 
+        # Keep existing predictions up to last_actual_date
+        existing_predictions = existing_predictions[existing_predictions['ds'] <= last_actual_date]
+
         # Combine existing predictions with new predictions
         if existing_predictions is not None and not existing_predictions.empty:
-            # Keep existing predictions up to last_actual_date
-            existing_predictions = existing_predictions[existing_predictions['ds'] <= last_actual_date]
             updated_predictions = pd.concat([existing_predictions, new_forecast])
         else:
             updated_predictions = new_forecast

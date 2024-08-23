@@ -286,7 +286,7 @@ def score_data(df, model, levels):
     last_date = df['ds'].max()
 
     # Calculate the number of days to forecast
-    today = pendulum.now().start_of('day')
+    today = pendulum.now().start_of('day').naive()
     days_to_forecast = (today.add(days=60) - last_date.to_pydatetime()).days
 
     # Make predictions
@@ -297,6 +297,7 @@ def score_data(df, model, levels):
     forecast_df['ds'] = forecast_dates
 
     return forecast_df
+
 def save_predictions(df, date):
 
     logger.info("Saving predictions to Gold layer")
@@ -348,7 +349,7 @@ def create_plotly_figure(df, models, confidence_levels):
         x=df['ds'],
         y=df['y'],
         mode='lines+markers',
-        name='Actual',
+        name='Real',
         line=dict(color='black', width=2),
         marker=dict(size=5)
     ))
@@ -386,15 +387,12 @@ def create_plotly_figure(df, models, confidence_levels):
                 showlegend=False
             ))
 
-    # Add a vertical line to indicate the start of the forecast
-    fig.add_vline(x=forecast_start, line_dash="dash", line_color="red", annotation_text="Forecast Start", annotation_position="top right")
-
     # Updating layout
     fig.update_layout(
-        title="Model Predictions with Confidence Intervals",
-        xaxis_title="Date",
-        yaxis_title="Value",
-        legend_title="Legend",
+        title="Previsões dos Modelos com Intervalos de Confiança",
+        xaxis_title="Data",
+        yaxis_title="Demanda (MW)",
+        legend_title="Legenda",
         hovermode="x"
     )
 

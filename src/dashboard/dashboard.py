@@ -12,17 +12,21 @@ import pendulum
 load_dotenv()
 
 def main():
-    st.title("Consumo de Energia")
+    st.title("Demanda de Eletricidade")
 
     st.header("Conjunto Completo")
     all_data = get_gold_data()
 
     # Plot the data
-    fig = px.line(all_data, x="ds", y="y", title="Consumo de Energia")
+    fig = px.line(all_data, x="ds", y="y", title="Demanda de Eletricidade")
+
+    # Add names to the X and Y axis
+    fig.update_xaxes(title_text="Data")
+    fig.update_yaxes(title_text="Demanda (MW)")
+
     st.plotly_chart(fig)
 
-    st.header("Predições")
-
+    st.header("Previsão de Demanda")
     predictions = load_predictions()
 
     # Select the models to compare
@@ -34,16 +38,14 @@ def main():
     selected_confidence_levels = st.multiselect("Níveis de Confiança", confidence_levels)
 
     # Generate the plot
-    # Get the date 30 days ago
-    start_date = pendulum.now().subtract(days=30).start_of('day').naive()
+    start_date = pendulum.now().start_of('day').naive()
 
     # Filter the dataframe to show data from 30 days before the forecast start date
-    df = all_data[all_data['ds'] >= start_date - pendulum.duration(days=30)].merge(
-        predictions.drop(columns=['unique_id','y']), on=["ds"], how="left"
-    )
+    df = predictions[predictions['ds'] >= start_date - pendulum.duration(days=30)]
 
     figure = create_plotly_figure(df, selected_models, selected_confidence_levels)
     st.plotly_chart(figure)
-
+    if st.checkbox("Mostrar Dados"):
+        st.dataframe(df)
 if __name__ == "__main__":
     main()
