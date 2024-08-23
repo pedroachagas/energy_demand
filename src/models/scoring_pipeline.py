@@ -17,9 +17,14 @@ LEVELS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99]
 HORIZON = 60
 
 def download_model():
+    github_token = os.environ.get('GITHUB_TOKEN')
+    if not github_token:
+        logger.warning("GITHUB_TOKEN not found in environment variables. Skipping model download.")
+        return
+
     # Replace with your actual GitHub repository and artifact details
     url = "https://api.github.com/repos/pedroachagas/energy_demand/actions/artifacts"
-    headers = {"Authorization": f"token {os.environ['GITHUB_TOKEN']}"}
+    headers = {"Authorization": f"token {github_token}"}
 
     try:
         response = requests.get(url, headers=headers)
@@ -66,6 +71,11 @@ def run_pipeline():
     try:
         # Download the trained model
         download_model()
+
+        # Check if the model file exists
+        if not os.path.exists('trained_model.joblib'):
+            logger.error("Trained model file not found. Unable to proceed with scoring.")
+            return
 
         # Load the trained model
         model = joblib.load('trained_model.joblib')

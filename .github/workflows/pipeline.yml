@@ -57,4 +57,5 @@ jobs:
         ACC_KEY: ${{ secrets.ACC_KEY }}
         CONTEINER: ${{ secrets.CONTEINER }}
         FOLDER: ${{ secrets.FOLDER }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: python -m src.models.scoring_pipeline
