@@ -339,10 +339,9 @@ def generate_plot(data, preds, models=[], levels=[]):
     return plot_series(data, preds, level=levels, models=models, engine='plotly', palette='tab10')
 
 def create_plotly_figure(df, models, confidence_levels):
-    fig = go.Figure()
+    df['ds'] = pd.to_datetime(df['ds'])
 
-    # Get the date 30 days ago (start of forecast)
-    forecast_start = pendulum.now().subtract(days=30).start_of('day').naive()
+    fig = go.Figure()
 
     # Adding the actual values
     fig.add_trace(go.Scatter(
