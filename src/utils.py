@@ -274,38 +274,29 @@ def train_model(df_train, models):
             id_col='unique_id',
             time_col='ds',
             target_col='y',
-            max_horizon=HORIZON,
             static_features=[],
-            prediction_intervals=PredictionIntervals(n_windows=3, h=HORIZON, method="conformal_distribution"),
+            prediction_intervals=PredictionIntervals(n_windows=3, method="conformal_distribution"),
             fitted=True
         )
 
 def score_data(df, model, levels):
     logger.info("Scoring data")
 
-    # Get the date 30 days ago
-    start_date = pendulum.now().subtract(days=30).start_of('day').naive()
+    # Get the last date in the data
+    last_date = df['ds'].max()
 
-    # Filter the dataframe to include data up to 30 days ago
-    df_history = df[df['ds'] < start_date]
-
-    # Create a date range for the next 60 days starting from 30 days ago
-    future_dates = pd.date_range(start=start_date, periods=60, freq='D')
-
-    # Create a dataframe for future predictions
-    df_future = pd.DataFrame({'ds': future_dates, 'unique_id': 0})
-
-    # Combine historical and future dataframes
-    df_to_predict = pd.concat([df_history, df_future]).sort_values('ds').reset_index(drop=True)
+    # Calculate the number of days to forecast
+    today = pendulum.now().start_of('day')
+    days_to_forecast = (today.add(days=60) - last_date.to_pydatetime()).days
 
     # Make predictions
-    forecast_df = model.predict(df=df_to_predict, level=levels)
+    forecast_df = model.predict(h=days_to_forecast, level=levels)
 
-    # Merge predictions with original data
-    result_df = df.merge(forecast_df, on=['ds', 'unique_id'], how='left')
+    # Add dates to the forecast dataframe
+    forecast_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=days_to_forecast, freq='D')
+    forecast_df['ds'] = forecast_dates
 
-    return result_df
-
+    return forecast_df
 def save_predictions(df, date):
 
     logger.info("Saving predictions to Gold layer")
