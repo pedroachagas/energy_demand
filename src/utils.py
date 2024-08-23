@@ -282,19 +282,15 @@ def train_model(df_train, models):
 def score_data(df, model, levels):
     logger.info("Scoring data")
 
-    # Get the last date in the data
-    last_date = df['ds'].max()
-
-    # Calculate the number of days to forecast
-    today = pendulum.now().start_of('day').naive()
-    days_to_forecast = (today.add(days=60) - last_date.to_pydatetime()).days
+    # Update the model with the new data
+    data = df[['ds', 'y', 'unique_id']].dropna()
+    model = model.update(data)
 
     # Make predictions
-    forecast_df = model.predict(h=days_to_forecast, level=levels)
+    forecast_df = model.predict(h=HORIZON, level=levels)
 
-    # Add dates to the forecast dataframe
-    forecast_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=days_to_forecast, freq='D')
-    forecast_df['ds'] = forecast_dates
+    # Merge the predictions with the original data
+    forecast_df = pd.concat([data, forecast_df], axis=0)
 
     return forecast_df
 
@@ -387,12 +383,12 @@ def create_plotly_figure(df, models, confidence_levels):
             ))
 
     # Updating layout
-    # fig.update_layout(
-    #     title="Previsões dos Modelos com Intervalos de Confiança",
-    #     xaxis_title="Data",
-    #     yaxis_title="Demanda (MW)",
-    #     legend_title="Legenda",
-    #     hovermode="x"
-    # )
+    fig.update_layout(
+        title="Previsões dos Modelos com Intervalos de Confiança",
+        xaxis_title="Data",
+        yaxis_title="Demanda (MW)",
+        legend_title="Legenda",
+        hovermode="x"
+    )
 
     return fig

@@ -65,6 +65,25 @@ def download_and_extract_model():
         logger.error(f"Error in download_and_extract_model: {str(e)}")
         raise
 
+def update_predictions(df_hist, preds):
+    # Ensure 'ds' column is of datetime type in both dataframes
+    df_hist['ds'] = pd.to_datetime(df_hist['ds'])
+    preds['ds'] = pd.to_datetime(preds['ds'])
+
+    # Merge the dataframes on 'ds'
+    merged = pd.merge(preds, df_hist[['ds', 'y']], on='ds', how='left', suffixes=('_pred', '_hist'))
+
+    # Update 'y' column in merged dataframe
+    merged['y'] = merged['y_hist'].fillna(merged['y_pred'])
+
+    # Drop unnecessary columns
+    updated_preds = merged.drop(['y_pred', 'y_hist'], axis=1)
+
+    # Ensure the columns are in the same order as the original preds dataframe
+    updated_preds = updated_preds[preds.columns]
+
+    return updated_preds
+
 def run_pipeline():
     try:
         # Download and extract the trained model
@@ -92,35 +111,15 @@ def run_pipeline():
         # Load existing predictions
         existing_predictions = load_predictions()
 
-        # Get the date of the last actual data point
-        last_actual_date = df_hist['ds'].max()
+        # Update the predictions
+        updated_predictions = update_predictions(df_hist, existing_predictions)
 
-        # Score data
-        new_forecast = score_data(df_hist, model, levels=LEVELS)
-
-        # Keep existing predictions up to last_actual_date
-        existing_predictions = existing_predictions[existing_predictions['ds'] <= last_actual_date]
-
-        # Combine existing predictions with new predictions
-        if existing_predictions is not None and not existing_predictions.empty:
-            updated_predictions = pd.concat([existing_predictions, new_forecast])
-        else:
-            updated_predictions = new_forecast
-
-        # Keep only the latest prediction for each date
-        updated_predictions = updated_predictions.sort_values('ds').groupby('ds').last().reset_index()
-
-        # Ensure we have a prediction for 60 days from now
-        today = pendulum.now().start_of('day')
-        future_date = today.add(days=60)
-        if future_date.date() not in updated_predictions['ds'].dt.date.values:
-            logger.warning(f"Missing prediction for {future_date.date()}. Rerunning prediction.")
-            new_forecast = score_data(df_hist, model, levels=LEVELS)
-            updated_predictions = pd.concat([updated_predictions, new_forecast]).sort_values('ds').groupby('ds').last().reset_index()
+        # Score the data
+        new_predictions = score_data(updated_predictions, model, LEVELS)
 
         # Save updated predictions
         process_date = pendulum.now().to_date_string().replace("-", "")
-        save_predictions(updated_predictions, process_date)
+        save_predictions(new_predictions, process_date)
 
     except Exception as e:
         logger.error(f"Scoring pipeline failed: {str(e)}")

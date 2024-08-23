@@ -1,8 +1,6 @@
 name: Modeling Pipeline
 
 on:
-  schedule:
-    - cron: '0 2 * * 0' # Runs weekly on Sunday at 02:00 UTC
   workflow_dispatch: # Allows manual triggering of the workflow
 
 jobs:
@@ -45,9 +43,6 @@ jobs:
           -e MODEL_START_DATE -e MODEL_SPLIT_DATE \
           ghcr.io/${{ github.repository }}/modeling:latest \
           python -m src.models.modeling_pipeline
-
-    - name: List directory contents
-      run: ls -R
 
     - name: Upload trained model
       uses: actions/upload-artifact@v2
