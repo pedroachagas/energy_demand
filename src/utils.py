@@ -387,12 +387,12 @@ def create_plotly_figure(df, models, confidence_levels):
             ))
 
     # Updating layout
-    fig.update_layout(
-        title="Previsões dos Modelos com Intervalos de Confiança",
-        xaxis_title="Data",
-        yaxis_title="Demanda (MW)",
-        legend_title="Legenda",
-        hovermode="x"
-    )
+    # fig.update_layout(
+    #     title="Previsões dos Modelos com Intervalos de Confiança",
+    #     xaxis_title="Data",
+    #     yaxis_title="Demanda (MW)",
+    #     legend_title="Legenda",
+    #     hovermode="x"
+    # )
 
     return fig
