@@ -35,7 +35,7 @@ def main():
 
     # Generate the plot
     # Get the date 30 days ago
-    start_date = pendulum.now().subtract(days=30).start_of('day')
+    start_date = pendulum.now().subtract(days=30).start_of('day').naive()
 
     # Filter the dataframe to show data from 30 days before the forecast start date
     df = all_data[all_data['ds'] >= start_date - pendulum.duration(days=30)].merge(

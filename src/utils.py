@@ -284,7 +284,7 @@ def score_data(df, model, levels):
     logger.info("Scoring data")
 
     # Get the date 30 days ago
-    start_date = pendulum.now().subtract(days=30).start_of('day')
+    start_date = pendulum.now().subtract(days=30).start_of('day').naive()
 
     # Filter the dataframe to include data up to 30 days ago
     df_history = df[df['ds'] < start_date]
@@ -350,7 +350,7 @@ def create_plotly_figure(df, models, confidence_levels):
     fig = go.Figure()
 
     # Get the date 30 days ago (start of forecast)
-    forecast_start = pendulum.now().subtract(days=30).start_of('day')
+    forecast_start = pendulum.now().subtract(days=30).start_of('day').naive()
 
     # Adding the actual values
     fig.add_trace(go.Scatter(
