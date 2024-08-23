@@ -40,13 +40,17 @@ jobs:
         MODEL_SPLIT_DATE: ${{ secrets.MODEL_SPLIT_DATE }}
       run: |
         docker run --rm \
+          -v ${{ github.workspace }}/models:/app/models \
           -e ACC_NAME -e ACC_KEY -e CONTEINER -e FOLDER \
           -e MODEL_START_DATE -e MODEL_SPLIT_DATE \
           ghcr.io/${{ github.repository }}/modeling:latest \
           python -m src.models.modeling_pipeline
 
+    - name: List directory contents
+      run: ls -R
+
     - name: Upload trained model
       uses: actions/upload-artifact@v2
       with:
         name: trained-model
-        path: trained_model.joblib
+        path: models/trained_model.joblib

@@ -36,8 +36,10 @@ def run_pipeline():
     model = train_model(data, models)
 
     # Save the trained model
-    joblib.dump(model, 'trained_model.joblib')
-    logger.info("Model trained and saved successfully")
+    os.makedirs('/app/models', exist_ok=True)
+    model_path = '/app/models/trained_model.joblib'
+    joblib.dump(model, model_path)
+    logger.info(f"Model saved successfully at {model_path}")
 
 if __name__ == "__main__":
     run_pipeline()
