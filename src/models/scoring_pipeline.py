@@ -20,7 +20,50 @@ load_dotenv()
 LEVELS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99]
 
 def download_and_extract_model():
-    # ... (keep the existing implementation)
+    github_token = os.environ.get('GITHUB_TOKEN')
+    if not github_token:
+        logger.warning("GITHUB_TOKEN not found in environment variables. Skipping model download.")
+        return
+
+    url = "https://api.github.com/repos/pedroachagas/energy_demand/actions/artifacts"
+    headers = {"Authorization": f"token {github_token}"}
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        artifacts = response.json()["artifacts"]
+
+        logger.info(f"Found {len(artifacts)} artifacts")
+        artifact_names = [artifact["name"] for artifact in artifacts]
+        logger.info(f"Available artifacts: {', '.join(artifact_names)}")
+
+        model_artifacts = [artifact for artifact in artifacts if artifact["name"] == "trained-model"]
+        if not model_artifacts:
+            raise ValueError("No 'trained-model' artifact found")
+
+        model_artifact = model_artifacts[0]
+        logger.info(f"Downloading artifact: {model_artifact['name']}")
+        download_url = model_artifact["archive_download_url"]
+        zip_content = requests.get(download_url, headers=headers).content
+
+        # Save as zip file
+        with open("model.zip", "wb") as zip_file:
+            zip_file.write(zip_content)
+
+        # Extract zip file
+        with zipfile.ZipFile("model.zip", "r") as zip_ref:
+            zip_ref.extractall("model_folder")
+
+        # Find the extracted joblib file
+        joblib_files = glob.glob("model_folder/*.joblib")
+        if not joblib_files:
+            raise ValueError("No .joblib file found in the extracted contents")
+
+        logger.info(f"Model file extracted: {joblib_files[0]}")
+
+    except Exception as e:
+        logger.error(f"Error in download_and_extract_model: {str(e)}")
+        raise
 
 def run_pipeline():
     try:
