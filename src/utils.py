@@ -284,7 +284,7 @@ def score_data(df, model, levels):
 
     # Update the model with the new data
     data = df[['ds', 'y', 'unique_id']].dropna()
-    model = model.update(data)
+    model.update(data)
 
     # Make predictions
     forecast_df = model.predict(h=HORIZON, level=levels)
