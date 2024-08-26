@@ -1,23 +1,16 @@
 import os
 import pendulum
-from load_dotenv import load_dotenv
-from ..utils import get_gold_data, score_data, save_predictions, load_predictions
-import loguru as logging
-import joblib
 import pandas as pd
 import requests
 import zipfile
-import io
 import glob
+import tempfile
+import joblib
 
-# Initialize logger
-logger = logging.logger
+from src.utils.azure_utils import load_gold_data, load_predictions, get_azure_blob_fs
+from src.utils.logging_utils import logger
+from src.config.config import config
 
-# Load environment variables
-load_dotenv()
-
-# Load environment variables
-LEVELS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99]
 
 def download_and_extract_model():
     github_token = os.environ.get('GITHUB_TOKEN')
@@ -65,6 +58,8 @@ def download_and_extract_model():
         logger.error(f"Error in download_and_extract_model: {str(e)}")
         raise
 
+    return joblib.load(joblib_files[0])
+
 def update_predictions(df_hist, preds):
     # Ensure 'ds' column is of datetime type in both dataframes
     df_hist['ds'] = pd.to_datetime(df_hist['ds'])
@@ -84,29 +79,51 @@ def update_predictions(df_hist, preds):
 
     return updated_preds
 
+
+def score_data(df, model, levels):
+    logger.info("Scoring data")
+
+    # Update the model with the new data
+    data = df[['ds', 'y', 'unique_id']].dropna()
+    model.update(data)
+
+    # Make predictions
+    forecast_df = model.predict(h=config.HORIZON, level=levels)
+
+    # Merge the predictions with the original data
+    forecast_df = pd.concat([df, forecast_df], axis=0).drop_duplicates(subset=['ds'], keep='last')
+
+    return forecast_df
+
+def save_predictions(df, date):
+
+    logger.info("Saving predictions to Gold layer")
+    predictions_blob_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/predictions/predictions_{date}.parquet"
+
+    # Save predictions to local temporary file
+    abfs = get_azure_blob_fs()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
+        local_predictions_path = tmp_file.name
+        df.to_parquet(local_predictions_path, index=False)
+
+    # Upload the local file to Azure Blob Storage
+    abfs.put(local_predictions_path, predictions_blob_path)
+
+    logger.info(f"Predictions saved to Gold layer: abfs://{predictions_blob_path}")
+
+
 def run_pipeline():
     try:
-        # Download and extract the trained model
-        download_and_extract_model()
-
-        # Find the extracted joblib file
-        joblib_files = glob.glob("model_folder/*.joblib")
-        if not joblib_files:
-            logger.error("No .joblib file found. Unable to proceed with scoring.")
-            return
-
-        model_path = joblib_files[0]
-
-        # Load the trained model
+        # Download the trained model
         try:
-            model = joblib.load(model_path)
-            logger.info(f"Model loaded successfully from {model_path}")
+            model = download_and_extract_model()
+            logger.info(f"Model loaded successfully")
         except Exception as e:
             logger.error(f"Error loading model: {str(e)}")
             raise
 
         # Get the latest data
-        df_hist = get_gold_data()
+        df_hist = load_gold_data()
 
         # Load existing predictions
         existing_predictions = load_predictions()
@@ -115,7 +132,7 @@ def run_pipeline():
         updated_predictions = update_predictions(df_hist, existing_predictions)
 
         # Score the data
-        new_predictions = score_data(updated_predictions, model, LEVELS)
+        new_predictions = score_data(updated_predictions, model, config.LEVELS)
 
         # Save updated predictions
         process_date = pendulum.now().to_date_string().replace("-", "")

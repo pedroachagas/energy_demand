@@ -2,8 +2,8 @@ name: Data Pipeline
 
 on:
   schedule:
-    - cron: '0 3 * * *' # Runs daily at 03:00 UTC, which is midnight in São Paulo time (UTC-3)
-  workflow_dispatch: # Allows manual triggering of the workflow
+    - cron: '0 3 * * *' # Runs daily at 03:00 UTC
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
   etl_job:
@@ -29,9 +29,10 @@ jobs:
         ACC_KEY: ${{ secrets.ACC_KEY }}
         CONTEINER: ${{ secrets.CONTEINER }}
         FOLDER: ${{ secrets.FOLDER }}
-        AZURE_FILE_NAME: ${{ secrets.AZURE_FILE_NAME }}
         START_DATE: ${{ secrets.START_DATE }}
-      run: python -m src.data.data_pipeline
+        END_DATE: ${{ secrets.END_DATE }}
+        AREA_CODE: ${{ secrets.AREA_CODE }}
+      run: python -m src.data.pipeline
 
   scoring_job:
     needs: etl_job

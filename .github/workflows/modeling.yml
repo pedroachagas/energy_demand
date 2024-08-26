@@ -1,7 +1,7 @@
 name: Modeling Pipeline
 
 on:
-  workflow_dispatch: # Allows manual triggering of the workflow
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
   modeling_job:

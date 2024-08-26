@@ -1,51 +1,96 @@
+import loguru as logging
+
+# Initialize logger
+logger = logging.logger
+logger.info("Starting dashboard")
+
+# imports
+import streamlit as st
+import plotly.express as px
+import plotly.graph_objs as go
 import sys
 from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-
-import streamlit as st
-from dotenv import load_dotenv
-from utils import get_gold_data, load_predictions, create_plotly_figure
-import plotly.express as px
+import pandas as pd
+import pyarrow.dataset as ds
 import pendulum
+# Add the project root to the Python path
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-# Load environment variables
-load_dotenv()
+from src.config.config import config
+from src.utils.azure_utils import load_gold_data, load_predictions
+from src.utils.logging_utils import logger
 
-def main():
-    st.title("Demanda de Eletricidade")
 
-    st.header("Conjunto Completo")
-    all_data = get_gold_data()
-
-    # Plot the data
-    fig = px.line(all_data, x="ds", y="y", title="Demanda de Eletricidade")
-
-    # Add names to the X and Y axis
+def create_demand_plot(df):
+    fig = px.line(df, x="date", y="daily_carga_mw", title="Demanda de Eletricidade Diária")
     fig.update_xaxes(title_text="Data")
     fig.update_yaxes(title_text="Demanda (MW)")
+    return fig
 
-    st.plotly_chart(fig)
+def create_forecast_plot(df, models, confidence_levels):
+    fig = go.Figure()
 
-    st.header("Previsão de Demanda")
-    predictions = load_predictions()
+    # Add actual values
+    fig.add_trace(go.Scatter(x=df['ds'], y=df['y'], mode='lines+markers', name='Real', line=dict(color='black', width=2)))
 
-    # Select the models to compare
-    models = [col for col in predictions.columns if "Regressor" in col and '-' not in col]
-    selected_models = st.multiselect("Modelos", models)
+    # Add predictions and confidence intervals for each model
+    for model in models:
+        fig.add_trace(go.Scatter(x=df['ds'], y=df[model], mode='lines', name=f'{model}', line=dict(width=2)))
 
-    # Select the confidence levels
-    confidence_levels = sorted(set(sorted([col.split("-")[2] for col in predictions.columns if '-' in col])))
-    selected_confidence_levels = st.multiselect("Níveis de Confiança", confidence_levels)
+        for conf in confidence_levels:
+            lo_col = f'{model}-lo-{conf}'
+            hi_col = f'{model}-hi-{conf}'
 
-    # Generate the plot
-    start_date = pendulum.now().start_of('day').naive()
+            fig.add_trace(go.Scatter(x=df['ds'], y=df[hi_col], mode='lines', line=dict(width=0), showlegend=False))
+            fig.add_trace(go.Scatter(x=df['ds'], y=df[lo_col], mode='lines', fill='tonexty',
+                                     fillcolor=f'rgba(0,100,80,{0.1 * conf/100})', line=dict(width=0),
+                                     name=f'{model} {conf}% CI', showlegend=conf == confidence_levels[-1]))
 
-    # Filter the dataframe to show data from 30 days before the forecast start date
-    df = predictions[predictions['ds'] >= start_date - pendulum.duration(days=30)]
+    fig.update_layout(title="Previsões dos Modelos com Intervalos de Confiança",
+                      xaxis_title="Data", yaxis_title="Demanda (MW)",
+                      legend_title="Legenda", hovermode="x")
+    return fig
 
-    figure = create_plotly_figure(df, selected_models, selected_confidence_levels)
-    st.plotly_chart(figure)
-    if st.checkbox("Mostrar Dados"):
-        st.dataframe(df)
+def main():
+    st.title("Demanda de Eletricidade - Dashboard")
+
+    try:
+        # Load data
+        df_gold = load_gold_data().rename(columns={"ds": "date", "y": "daily_carga_mw"})
+        df_predictions = load_predictions()
+
+        # Historical Demand Section
+        st.header("Demanda Histórica")
+        fig_demand = create_demand_plot(df_gold)
+        st.plotly_chart(fig_demand)
+
+        # Forecast Section
+        st.header("Previsão de Demanda")
+
+        # Select models to display
+        models = [col for col in df_predictions.columns if "Regressor" in col and '-' not in col]
+        selected_models = st.multiselect("Modelos", models, default=models[2] if models else None)
+
+        # Select confidence levels
+        confidence_levels = sorted(set([int(col.split("-")[-1]) for col in df_predictions.columns if '-' in col]))
+        selected_confidence_levels = st.multiselect("Níveis de Confiança", confidence_levels, default=[95])
+
+        if selected_models and selected_confidence_levels:
+            # Filter data to show only the last 30 days of historical data and the forecast
+            cutoff_date = pendulum.now().subtract(days=30).start_of('day').naive()
+            df_forecast = df_predictions[df_predictions['ds'] >= cutoff_date]
+
+            fig_forecast = create_forecast_plot(df_forecast, selected_models, selected_confidence_levels)
+            st.plotly_chart(fig_forecast)
+
+            if st.checkbox("Mostrar Dados de Previsão"):
+                st.dataframe(df_forecast)
+        else:
+            st.warning("Por favor, selecione pelo menos um modelo e um nível de confiança para visualizar as previsões.")
+
+    except Exception as e:
+        logger.error(f"Error in dashboard: {str(e)}")
+        st.error(f"An error occurred: {str(e)}")
+
 if __name__ == "__main__":
     main()

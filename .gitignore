@@ -16,3 +16,5 @@ __pycache__
 *catboost*
 *.joblib
 *.zip
+/model
+/model_folder
