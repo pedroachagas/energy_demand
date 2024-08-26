@@ -6,7 +6,7 @@ load_dotenv()
 class Config:
     START_DATE = os.getenv("START_DATE")
     END_DATE = os.getenv("END_DATE")
-    AREA_CODE = os.getenv("AREA_CODE", "SP")
+    AREA_CODE = os.getenv("AREA_CODE")
     ACC_NAME = os.getenv("ACC_NAME")
     ACC_KEY = os.getenv("ACC_KEY")
     CONTAINER_NAME = os.getenv("CONTEINER")
