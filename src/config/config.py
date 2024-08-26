@@ -14,7 +14,7 @@ class Config:
     AZURE_FILE_NAME = os.getenv("AZURE_FILE_NAME")
     MODEL_START_DATE = os.getenv("MODEL_START_DATE")
     MODEL_SPLIT_DATE = os.getenv("MODEL_SPLIT_DATE")
-    LEVELS = [int(level.strip()) for level in os.getenv("LEVELS", "").split(",") if level.strip()]
+    LEVELS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.99, 1]
     HORIZON = 60
 
 config = Config()
