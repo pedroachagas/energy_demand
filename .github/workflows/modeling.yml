@@ -1,10 +1,11 @@
+# .github/workflows/modeling.yml
 name: Modeling Pipeline
 
 on:
   push:
     paths:
       - 'src/models/modeling_pipeline.py'
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:
 
 jobs:
   modeling_job:
@@ -28,6 +29,7 @@ jobs:
       uses: docker/build-push-action@v2
       with:
         context: .
+        file: ./ci/Dockerfile
         push: true
         tags: ghcr.io/${{ github.repository }}/modeling:latest
 
@@ -44,8 +46,7 @@ jobs:
           -v ${{ github.workspace }}/models:/app/models \
           -e ACC_NAME -e ACC_KEY -e CONTEINER -e FOLDER \
           -e MODEL_START_DATE -e MODEL_SPLIT_DATE \
-          ghcr.io/${{ github.repository }}/modeling:latest \
-          python -m src.models.modeling_pipeline
+          ghcr.io/${{ github.repository }}/modeling:latest
 
     - name: Upload trained model
       uses: actions/upload-artifact@v2
