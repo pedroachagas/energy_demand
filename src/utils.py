@@ -290,7 +290,7 @@ def score_data(df, model, levels):
     forecast_df = model.predict(h=HORIZON, level=levels)
 
     # Merge the predictions with the original data
-    forecast_df = pd.concat([data, forecast_df], axis=0)
+    forecast_df = pd.concat([df, forecast_df], axis=0).drop_duplicates(subset=['ds'], keep='last')
 
     return forecast_df
 
@@ -318,6 +318,7 @@ def load_predictions():
     latest_file = max(files, key=lambda x: x.split("/")[-1])
     predictions_blob_path = latest_file
 
+    logger.info(f"Loading predictions from: {predictions_blob_path}")
     pqdata = ds.dataset(predictions_blob_path, filesystem=abfs)
 
     return (
