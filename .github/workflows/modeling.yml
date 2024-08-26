@@ -1,6 +1,9 @@
 name: Modeling Pipeline
 
 on:
+  push:
+    paths:
+      - 'src/models/modeling_pipeline.py'
   workflow_dispatch: # Allows manual triggering
 
 jobs:
