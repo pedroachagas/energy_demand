@@ -5,7 +5,7 @@ from src.config.config import config
 
 def load_to_bronze(df, process_date):
     logger.info("Loading data to Bronze layer")
-    bronze_path = f"{config.FOLDER}/bronze/raw_data_{process_date}.json"
+    bronze_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/bronze/raw_data_{process_date}.json"
 
     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".json") as tmp_file:
         df.to_json(tmp_file.name, orient='records')
@@ -15,7 +15,7 @@ def load_to_bronze(df, process_date):
 
 def load_to_silver(df, process_date):
     logger.info("Loading data to Silver layer")
-    silver_path = f"{config.FOLDER}/silver/cleaned_data_{process_date}.parquet"
+    silver_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/silver/cleaned_data_{process_date}.parquet"
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
         df.to_parquet(tmp_file.name, index=False)
@@ -25,7 +25,7 @@ def load_to_silver(df, process_date):
 
 def load_to_gold(df, process_date):
     logger.info("Loading data to Gold layer")
-    gold_path = f"{config.FOLDER}/gold/aggregated_data_{process_date}.parquet"
+    gold_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/gold/aggregated_data_{process_date}.parquet"
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
         df.to_parquet(tmp_file.name, index=False)
