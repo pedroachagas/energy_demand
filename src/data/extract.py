@@ -8,6 +8,7 @@ def fetch_data(start_date, end_date, area_code):
     logger.info("Starting data fetch")
     start = pendulum.parse(start_date)
     end = pendulum.parse(end_date)
+    logger.info(f"Fetching data from {start.to_date_string()} to {end.to_date_string()} for area code {area_code}")
 
     all_data = []
     current_start = start
@@ -16,6 +17,7 @@ def fetch_data(start_date, end_date, area_code):
         current_end = min(current_start.add(days=90), end)
 
         url = f'https://apicarga.ons.org.br/prd/cargaverificada?dat_inicio={current_start.to_date_string()}&dat_fim={current_end.to_date_string()}&cod_areacarga={area_code}'
+        logger.info(url)
 
         session = requests.Session()
         retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
