@@ -2,15 +2,20 @@ import pandas as pd
 import duckdb
 import pendulum
 from src.utils.logging_utils import logger
+from typing import Any, Dict, List
 
-def transform_to_bronze(data):
+def transform_to_bronze(data: List[Dict[str, Any]]) -> pd.DataFrame:
+    """
+    Converts raw data to a Bronze DataFrame.
+    """
     logger.info("Transforming data to Bronze format")
-    # In this case, we're not doing much transformation for the bronze layer
-    # Just converting the raw data to a DataFrame
     df = pd.DataFrame(data)
     return df
 
-def transform_to_silver(df):
+def transform_to_silver(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transforms Bronze DataFrame to Silver by casting columns and filtering.
+    """
     logger.info("Transforming data to Silver format")
     conn = duckdb.connect(":memory:")
     conn.register("bronze_data", df)
@@ -25,7 +30,10 @@ def transform_to_silver(df):
 
     return silver_df
 
-def transform_to_gold(df):
+def transform_to_gold(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aggregates Silver DataFrame into Gold format by summing daily values.
+    """
     logger.info("Transforming data to Gold format")
     conn = duckdb.connect(":memory:")
     conn.register("silver_data", df)

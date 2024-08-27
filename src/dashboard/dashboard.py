@@ -1,10 +1,4 @@
 import loguru as logging
-
-# Initialize logger
-logger = logging.logger
-logger.info("Starting dashboard")
-
-# imports
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objs as go
@@ -13,6 +7,12 @@ from pathlib import Path
 import pandas as pd
 import pyarrow.dataset as ds
 import pendulum
+from typing import List
+
+# Initialize logger
+logger = logging.logger
+logger.info("Starting dashboard")
+
 # Add the project root to the Python path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
@@ -21,13 +21,34 @@ from src.utils.azure_utils import load_gold_data, load_predictions
 from src.utils.logging_utils import logger
 
 
-def create_demand_plot(df):
+def create_demand_plot(df: pd.DataFrame) -> go.Figure:
+    """
+    Create a line plot of daily electricity demand.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing 'date' and 'daily_carga_mw' columns.
+
+    Returns:
+        go.Figure: Plotly figure object with the demand plot.
+    """
     fig = px.line(df, x="date", y="daily_carga_mw", title="Demanda de Eletricidade Diária")
     fig.update_xaxes(title_text="Data")
     fig.update_yaxes(title_text="Demanda (MW)")
     return fig
 
-def create_forecast_plot(df, models, confidence_levels):
+
+def create_forecast_plot(df: pd.DataFrame, models: List[str], confidence_levels: List[int]) -> go.Figure:
+    """
+    Create a forecast plot with confidence intervals.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing actual and forecasted values.
+        models (List[str]): List of model names to include in the plot.
+        confidence_levels (List[int]): List of confidence levels for intervals.
+
+    Returns:
+        go.Figure: Plotly figure object with the forecast plot.
+    """
     fig = go.Figure()
 
     # Add actual values
@@ -51,7 +72,11 @@ def create_forecast_plot(df, models, confidence_levels):
                       legend_title="Legenda", hovermode="x")
     return fig
 
-def main():
+
+def main() -> None:
+    """
+    Main function to render the Streamlit dashboard.
+    """
     st.title("Demanda de Eletricidade - Dashboard")
 
     try:
@@ -91,6 +116,7 @@ def main():
     except Exception as e:
         logger.error(f"Error in dashboard: {str(e)}")
         st.error(f"An error occurred: {str(e)}")
+
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,7 @@ This project is an end-to-end electricity demand forecasting application that us
 
 ## Project Structure
 
-```
+```plaintext
 electricity-demand-forecasting/
 ├── .github/workflows/  # GitHub Actions workflows
 ├── ci/                 # CI/CD specific files
@@ -21,13 +21,15 @@ electricity-demand-forecasting/
 ## Setup
 
 1. Clone the repository:
-   ```
+
+   ```bash
    git clone https://github.com/yourusername/electricity-demand-forecasting.git
    cd electricity-demand-forecasting
    ```
 
 2. Set up the project:
-   ```
+
+   ```bash
    make setup
    ```
 
@@ -67,7 +69,3 @@ The Dockerfile for the modeling pipeline is located in `ci/Dockerfile`.
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-[Add your chosen license here]

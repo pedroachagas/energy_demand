@@ -6,17 +6,19 @@ import zipfile
 import glob
 import tempfile
 import joblib
+from typing import Optional, Any
 
 from src.utils.azure_utils import load_gold_data, load_predictions, get_azure_blob_fs
 from src.utils.logging_utils import logger
 from src.config.config import config
 
 
-def download_and_extract_model():
+def download_and_extract_model() -> Optional[Any]:
+    """Downloads and extracts the trained model from GitHub, returning the model object."""
     github_token = os.environ.get('GITHUB_TOKEN')
     if not github_token:
         logger.warning("GITHUB_TOKEN not found in environment variables. Skipping model download.")
-        return
+        return None
 
     url = "https://api.github.com/repos/pedroachagas/energy_demand/actions/artifacts"
     headers = {"Authorization": f"token {github_token}"}
@@ -60,87 +62,67 @@ def download_and_extract_model():
 
     return joblib.load(joblib_files[0])
 
-def update_predictions(df_hist, preds):
-    # Ensure 'ds' column is of datetime type in both dataframes
+
+def update_predictions(df_hist: pd.DataFrame, preds: pd.DataFrame) -> pd.DataFrame:
+    """Updates predictions by merging historical data."""
     df_hist['ds'] = pd.to_datetime(df_hist['ds'])
     preds['ds'] = pd.to_datetime(preds['ds'])
 
-    # Merge the dataframes on 'ds'
     merged = pd.merge(preds, df_hist[['ds', 'y']], on='ds', how='left', suffixes=('_pred', '_hist'))
-
-    # Update 'y' column in merged dataframe
     merged['y'] = merged['y_hist'].fillna(merged['y_pred'])
-
-    # Drop unnecessary columns
     updated_preds = merged.drop(['y_pred', 'y_hist'], axis=1)
 
-    # Ensure the columns are in the same order as the original preds dataframe
-    updated_preds = updated_preds[preds.columns]
-
-    return updated_preds
+    return updated_preds[preds.columns]
 
 
-def score_data(df, model, levels):
+def score_data(df: pd.DataFrame, model: Any, levels: list[float]) -> pd.DataFrame:
+    """Scores the data using the model and returns the forecast."""
     logger.info("Scoring data")
 
-    # Update the model with the new data
     data = df[['ds', 'y', 'unique_id']].dropna()
     model.update(data)
 
-    # Make predictions
     forecast_df = model.predict(h=config.HORIZON, level=levels)
-
-    # Merge the predictions with the original data
     forecast_df = pd.concat([df, forecast_df], axis=0).drop_duplicates(subset=['ds'], keep='last')
 
     return forecast_df
 
-def save_predictions(df, date):
 
+def save_predictions(df: pd.DataFrame, date: str) -> None:
+    """Saves predictions to Azure Blob Storage."""
     logger.info("Saving predictions to Gold layer")
     predictions_blob_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/predictions/predictions_{date}.parquet"
 
-    # Save predictions to local temporary file
     abfs = get_azure_blob_fs()
     with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as tmp_file:
         local_predictions_path = tmp_file.name
         df.to_parquet(local_predictions_path, index=False)
 
-    # Upload the local file to Azure Blob Storage
     abfs.put(local_predictions_path, predictions_blob_path)
 
     logger.info(f"Predictions saved to Gold layer: abfs://{predictions_blob_path}")
 
 
-def run_pipeline():
+def run_pipeline() -> None:
+    """Runs the full pipeline: download model, update, score, and save predictions."""
     try:
-        # Download the trained model
-        try:
-            model = download_and_extract_model()
-            logger.info(f"Model loaded successfully")
-        except Exception as e:
-            logger.error(f"Error loading model: {str(e)}")
-            raise
+        model = download_and_extract_model()
+        if model is None:
+            return
 
-        # Get the latest data
         df_hist = load_gold_data()
-
-        # Load existing predictions
         existing_predictions = load_predictions()
 
-        # Update the predictions
         updated_predictions = update_predictions(df_hist, existing_predictions)
-
-        # Score the data
         new_predictions = score_data(updated_predictions, model, config.LEVELS)
 
-        # Save updated predictions
         process_date = pendulum.now().to_date_string().replace("-", "")
         save_predictions(new_predictions, process_date)
 
     except Exception as e:
         logger.error(f"Scoring pipeline failed: {str(e)}")
         raise
+
 
 if __name__ == "__main__":
     run_pipeline()
