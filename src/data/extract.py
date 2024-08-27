@@ -1,10 +1,19 @@
 import requests
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry # type: ignore
 import pendulum
 from pendulum import DateTime
 from src.utils.logging_utils import logger
 from typing import List, Dict, Any
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type(requests.exceptions.RequestException)
+)
+def make_request(url: str) -> requests.Response:
+    response = requests.get(url)
+    response.raise_for_status()
+    return response
 
 def fetch_data(start_date: str, end_date: str, area_code: str) -> List[Dict[str, Any]]:
     """
@@ -46,13 +55,8 @@ def fetch_data(start_date: str, end_date: str, area_code: str) -> List[Dict[str,
                f'&cod_areacarga={area_code}')
         logger.info(url)
 
-        session = requests.Session()
-        retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
-        session.mount('http://', HTTPAdapter(max_retries=retries))
-
         try:
-            response = session.get(url)
-            response.raise_for_status()
+            response = make_request(url)
             chunk_data: List[Dict[str, Any]] = response.json()
 
             expected_records: int = (current_end.add(days=1) - current_start).in_hours() * 2
