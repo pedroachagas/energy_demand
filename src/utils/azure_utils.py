@@ -4,6 +4,7 @@ from src.utils.logging_utils import logger
 import pandas as pd
 import pyarrow.dataset as ds
 from typing import Any
+import json
 
 def get_azure_blob_fs() -> AzureBlobFileSystem:
     """
@@ -30,19 +31,6 @@ def save_to_azure(local_path: str, azure_path: str) -> None:
     with open(local_path, 'rb') as local_file:
         with abfs.open(azure_path, 'wb') as azure_file:
             azure_file.write(local_file.read())
-
-def load_from_azure(azure_path: str, local_path: str) -> None:
-    """
-    Load a file from Azure Blob Storage to the local filesystem.
-
-    Args:
-        azure_path (str): The path in Azure Blob Storage to the file.
-        local_path (str): The local path where the file should be saved.
-    """
-    abfs = get_azure_blob_fs()
-    with abfs.open(azure_path, 'rb') as azure_file:
-        with open(local_path, 'wb') as local_file:
-            local_file.write(azure_file.read())
 
 def check_file_exists(azure_path: str) -> Any|bool:
     """
@@ -82,16 +70,56 @@ def load_gold_data() -> pd.DataFrame:
         .to_table()
         .to_pandas()
         .reset_index(drop=True)
-        .assign(
-            date=lambda x: pd.to_datetime(x["date"]),
-            unique_id=0
-        )
-        .rename(columns={
-            "date": "ds",
-            "daily_carga_mw": "y",
-        })
-        .sort_values("ds")
     )
+
+def load_silver_data():
+    """
+    Load the latest Silver layer data from Azure Blob Storage into a Pandas DataFrame.
+
+    Returns:
+        pd.DataFrame: The Silver layer data with columns renamed and sorted by date.
+    """
+    silver_blob_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/silver/"
+
+    # Find the latest file
+    logger.info(f"Finding the latest file in {silver_blob_path}")
+    abfs = get_azure_blob_fs()
+    files = abfs.ls(silver_blob_path)
+    latest_file = max(files, key=lambda x: x.split("/")[-1])
+    silver_blob_path = latest_file
+
+    # Load the Silver Parquet file
+    logger.info(f"Loading Silver data from {silver_blob_path}")
+    pqdata = ds.dataset(silver_blob_path, filesystem=abfs)
+
+    return (
+        pqdata
+        .to_table()
+        .to_pandas()
+        .reset_index(drop=True)
+    )
+
+def load_bronze_data() -> pd.DataFrame:
+    """
+    Load the latest Bronze layer data from Azure Blob Storage into a Pandas DataFrame.
+
+    Returns:
+        pd.DataFrame: The Bronze layer data with columns renamed and sorted by date.
+    """
+    bronze_blob_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/bronze/"
+
+    # Find the latest file
+    logger.info(f"Finding the latest file in {bronze_blob_path}")
+    abfs = get_azure_blob_fs()
+    files = abfs.ls(bronze_blob_path)
+    latest_file = max(files, key=lambda x: x.split("/")[-1])
+    bronze_blob_path = latest_file
+
+    # Load the Bronze JSON file
+    logger.info(f"Loading Bronze data from {bronze_blob_path}")
+    with abfs.open(bronze_blob_path, "r") as file:
+        return pd.DataFrame(json.load(file))
+
 
 def load_predictions() -> pd.DataFrame:
     """
@@ -117,8 +145,4 @@ def load_predictions() -> pd.DataFrame:
         .to_table()
         .to_pandas()
         .reset_index(drop=True)
-        .assign(
-            ds=lambda x: pd.to_datetime(x["ds"]),
-        )
-        .sort_values("ds")
     )

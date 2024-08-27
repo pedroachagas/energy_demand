@@ -4,6 +4,12 @@ import pendulum
 from src.utils.logging_utils import logger
 from typing import Any, Dict, List
 
+from src.data.schemas.bronze_schema import schema as bronze_schema
+from src.data.schemas.silver_schema import schema as silver_schema
+from src.data.schemas.gold_schema import schema as gold_schema
+from pandera import check_output
+
+@check_output(bronze_schema)
 def transform_to_bronze(data: List[Dict[str, Any]]) -> pd.DataFrame:
     """
     Converts raw data to a Bronze DataFrame.
@@ -12,6 +18,7 @@ def transform_to_bronze(data: List[Dict[str, Any]]) -> pd.DataFrame:
     df = pd.DataFrame(data)
     return df
 
+@check_output(silver_schema)
 def transform_to_silver(df: pd.DataFrame) -> pd.DataFrame:
     """
     Transforms Bronze DataFrame to Silver by casting columns and filtering.
@@ -30,6 +37,7 @@ def transform_to_silver(df: pd.DataFrame) -> pd.DataFrame:
 
     return silver_df
 
+@check_output(gold_schema)
 def transform_to_gold(df: pd.DataFrame) -> pd.DataFrame:
     """
     Aggregates Silver DataFrame into Gold format by summing daily values.

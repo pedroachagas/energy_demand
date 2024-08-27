@@ -12,6 +12,9 @@ from src.utils.azure_utils import load_gold_data, load_predictions, get_azure_bl
 from src.utils.logging_utils import logger
 from src.config.config import config
 
+from src.data.schemas.predictions_schema import schema as predictions_schema
+from pandera import check_output
+
 
 def download_and_extract_model() -> Optional[Any]:
     """Downloads and extracts the trained model from GitHub, returning the model object."""
@@ -62,7 +65,7 @@ def download_and_extract_model() -> Optional[Any]:
 
     return joblib.load(joblib_files[0])
 
-
+@check_output(predictions_schema)
 def update_predictions(df_hist: pd.DataFrame, preds: pd.DataFrame) -> pd.DataFrame:
     """Updates predictions by merging historical data."""
     df_hist['ds'] = pd.to_datetime(df_hist['ds'])
@@ -74,7 +77,7 @@ def update_predictions(df_hist: pd.DataFrame, preds: pd.DataFrame) -> pd.DataFra
 
     return updated_preds[preds.columns]
 
-
+@check_output(predictions_schema)
 def score_data(df: pd.DataFrame, model: Any, levels: list[float]) -> pd.DataFrame:
     """Scores the data using the model and returns the forecast."""
     logger.info("Scoring data")

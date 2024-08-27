@@ -1,4 +1,6 @@
 import pendulum
+import pandas as pd
+from datetime import timedelta
 from typing import Tuple, List, Optional
 
 def parse_date(date_string: str) -> pendulum.Date:
@@ -81,3 +83,10 @@ def is_valid_date_range(start_date: pendulum.Date, end_date: pendulum.Date) -> b
     """
     today = pendulum.today().date()
     return start_date <= end_date <= today
+
+def check_time_interval(series: pd.Series, interval: timedelta) -> bool:
+    times = pd.to_datetime(series, utc=True)
+    sorted_times = times.sort_values()
+    time_diff = sorted_times.diff().dropna()
+    condition = time_diff == interval
+    return bool(condition.all())
