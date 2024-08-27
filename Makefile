@@ -42,4 +42,4 @@ install:
 
 # Update requirements.txt
 freeze:
-	pip freeze > requirements.txt
+	pip freeze --all > requirements.txt
