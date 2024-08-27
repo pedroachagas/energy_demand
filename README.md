@@ -18,6 +18,19 @@ electricity-demand-forecasting/
 └── requirements.txt    # Project dependencies
 ```
 
+## System Architecture
+
+![System Architecture Diagram](architecture.svg)
+
+The system consists of the following main components:
+
+1. ETL Pipeline: Extracts data from an external API, transforms it, and loads it into Azure Blob Storage.
+2. Modeling Pipeline: Trains machine learning models using historical data.
+3. Scoring Pipeline: Uses trained models to make predictions on new data.
+4. Dashboard: Visualizes the forecasting results.
+5. GitHub Actions: Manages CI/CD processes for automated pipeline execution and model training.
+
+
 ## Setup
 
 1. Clone the repository:
