@@ -13,7 +13,7 @@ class Config:
     AREA_CODE: str = os.getenv("AREA_CODE", "")
     ACC_NAME: str = os.getenv("ACC_NAME", "")
     ACC_KEY: str = os.getenv("ACC_KEY", "")
-    CONTAINER_NAME: str = os.getenv("CONTAINER_NAME", "")  # Fixed variable name typo
+    CONTAINER_NAME: str = os.getenv("CONTEINER", "")
     FOLDER: str = os.getenv("FOLDER", "")
     AZURE_FILE_NAME: str = os.getenv("AZURE_FILE_NAME", "")
     MODEL_START_DATE: str = os.getenv("MODEL_START_DATE", "")

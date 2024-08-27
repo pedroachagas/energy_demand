@@ -67,6 +67,7 @@ def load_gold_data() -> pd.DataFrame:
     gold_blob_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/gold/"
 
     # Find the latest file
+    logger.info(f"Finding the latest file in {gold_blob_path}")
     abfs = get_azure_blob_fs()
     files = abfs.ls(gold_blob_path)
     latest_file = max(files, key=lambda x: x.split("/")[-1])
