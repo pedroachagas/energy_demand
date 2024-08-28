@@ -6,7 +6,7 @@ from pandera import DataFrameSchema, Column, Check, Index
 from src.config.config import config
 from src.utils.date_utils import check_time_interval
 
-LOWER_BOUND = 500_000
+LOWER_BOUND = 100_000
 UPPER_BOUND = 1_100_000
 
 schema = DataFrameSchema(
