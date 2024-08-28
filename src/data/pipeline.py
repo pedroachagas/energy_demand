@@ -6,6 +6,19 @@ from src.data.transform import transform_to_bronze, transform_to_silver, transfo
 from src.data.load import load_to_bronze, load_to_silver, load_to_gold
 from src.utils.azure_utils import check_file_exists
 
+def data_exists(process_date: str) -> bool:
+    """
+    Check if data for the given process date already exists in the gold layer.
+
+    Args:
+        process_date (str): The date string to check for existing data.
+
+    Returns:
+        bool: True if the data exists, False otherwise.
+    """
+    gold_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/gold/aggregated_data_{process_date}.parquet"
+    return check_file_exists(gold_path)
+
 def run_pipeline(Force: bool = False) -> None:
     """
     Run the ETL pipeline to process data from raw to gold layer.
@@ -14,8 +27,8 @@ def run_pipeline(Force: bool = False) -> None:
         Force (bool): If True, forces the pipeline to run even if data for the process_date already exists.
     """
     try:
-        end_date: str = config.END_DATE or pendulum.now().subtract(days=1).to_date_string()
-        process_date: str = pendulum.now().to_date_string().replace("-", "")
+        end_date: str = config.END_DATE or  pendulum.now("America/Sao_Paulo").subtract(days=1).to_date_string()
+        process_date: str =  pendulum.now("America/Sao_Paulo").to_date_string().replace("-", "")
 
         # Check if data for the process_date already exists
         if not Force and data_exists(process_date):
@@ -41,19 +54,6 @@ def run_pipeline(Force: bool = False) -> None:
     except Exception as e:
         logger.error(f"Pipeline failed: {str(e)}")
         raise
-
-def data_exists(process_date: str) -> bool:
-    """
-    Check if data for the given process date already exists in the gold layer.
-
-    Args:
-        process_date (str): The date string to check for existing data.
-
-    Returns:
-        bool: True if the data exists, False otherwise.
-    """
-    gold_path = f"{config.CONTAINER_NAME}/{config.FOLDER}/gold/aggregated_data_{process_date}.parquet"
-    return check_file_exists(gold_path)
 
 if __name__ == "__main__":
     run_pipeline()
