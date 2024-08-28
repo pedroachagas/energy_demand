@@ -114,7 +114,7 @@ def run_pipeline() -> None:
         if model is None:
             return
 
-        df_hist = load_gold_data()
+        df_hist = load_gold_data().rename(columns={'date': 'ds', 'daily_carga_mw': 'y'})
         existing_predictions = load_predictions()
 
         updated_predictions = update_predictions(df_hist, existing_predictions)
