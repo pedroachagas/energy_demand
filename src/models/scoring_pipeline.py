@@ -15,7 +15,13 @@ from src.config.config import config
 from src.data.schemas.predictions_schema import schema as predictions_schema
 from pandera import check_output
 
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((requests.RequestException, zipfile.BadZipFile, ValueError))
+)
 def download_and_extract_model() -> Optional[Any]:
     """Downloads and extracts the trained model from GitHub, returning the model object."""
     github_token = os.environ.get('GITHUB_TOKEN')
@@ -26,42 +32,37 @@ def download_and_extract_model() -> Optional[Any]:
     url = "https://api.github.com/repos/pedroachagas/energy_demand/actions/artifacts"
     headers = {"Authorization": f"token {github_token}"}
 
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        artifacts = response.json()["artifacts"]
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    artifacts = response.json()["artifacts"]
 
-        logger.info(f"Found {len(artifacts)} artifacts")
-        artifact_names = [artifact["name"] for artifact in artifacts]
-        logger.info(f"Available artifacts: {', '.join(artifact_names)}")
+    logger.info(f"Found {len(artifacts)} artifacts")
+    artifact_names = [artifact["name"] for artifact in artifacts]
+    logger.info(f"Available artifacts: {', '.join(artifact_names)}")
 
-        model_artifacts = [artifact for artifact in artifacts if artifact["name"] == "trained-model"]
-        if not model_artifacts:
-            raise ValueError("No 'trained-model' artifact found")
+    model_artifacts = [artifact for artifact in artifacts if artifact["name"] == "trained-model"]
+    if not model_artifacts:
+        raise ValueError("No 'trained-model' artifact found")
 
-        model_artifact = model_artifacts[0]
-        logger.info(f"Downloading artifact: {model_artifact['name']}")
-        download_url = model_artifact["archive_download_url"]
-        zip_content = requests.get(download_url, headers=headers).content
+    model_artifact = model_artifacts[0]
+    logger.info(f"Downloading artifact: {model_artifact['name']}")
+    download_url = model_artifact["archive_download_url"]
+    zip_content = requests.get(download_url, headers=headers).content
 
-        # Save as zip file
-        with open("model.zip", "wb") as zip_file:
-            zip_file.write(zip_content)
+    # Save as zip file
+    with open("model.zip", "wb") as zip_file:
+        zip_file.write(zip_content)
 
-        # Extract zip file
-        with zipfile.ZipFile("model.zip", "r") as zip_ref:
-            zip_ref.extractall("model_folder")
+    # Extract zip file
+    with zipfile.ZipFile("model.zip", "r") as zip_ref:
+        zip_ref.extractall("model_folder")
 
-        # Find the extracted joblib file
-        joblib_files = glob.glob("model_folder/*.joblib")
-        if not joblib_files:
-            raise ValueError("No .joblib file found in the extracted contents")
+    # Find the extracted joblib file
+    joblib_files = glob.glob("model_folder/*.joblib")
+    if not joblib_files:
+        raise ValueError("No .joblib file found in the extracted contents")
 
-        logger.info(f"Model file extracted: {joblib_files[0]}")
-
-    except Exception as e:
-        logger.error(f"Error in download_and_extract_model: {str(e)}")
-        raise
+    logger.info(f"Model file extracted: {joblib_files[0]}")
 
     return joblib.load(joblib_files[0])
 
@@ -78,7 +79,7 @@ def update_predictions(df_hist: pd.DataFrame, preds: pd.DataFrame) -> pd.DataFra
     return updated_preds[preds.columns]
 
 @check_output(predictions_schema)
-def score_data(df: pd.DataFrame, model: Any, levels: list[float]) -> pd.DataFrame:
+def score_data(df: pd.DataFrame, model: Any, levels: list[int]) -> pd.DataFrame:
     """Scores the data using the model and returns the forecast."""
     logger.info("Scoring data")
 
